@@ -1,0 +1,29 @@
+# Large downloaded data
+data/images_raw/
+data/images_licensed/
+data/images_clean/
+data/masks/
+data/embeddings/
+data/tiles/
+data/cache/
+
+# Outputs / artifacts
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.h5
+*.pkl
+*.joblib
+*.npz
+*.parquet
+
+# Logs
+*.log
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+__pycache__/
