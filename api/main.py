@@ -1,43 +1,62 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
+import csv
+import math
+import os
 
-# 1. Initialize the FastAPI application
 app = FastAPI(
     title="Butterfly Generation API",
     description="API for the flutterFriends geographically conditioned ML model."
 )
 
-# 2. Define the Request Data Model
-# This forces the frontend to send the correct data types.
 class ButterflyRequest(BaseModel):
     latitude: float
     longitude: float
-    visual_features: List[str] # e.g., ["blue wings", "large"]
+    visual_features: List[str]
 
-# 3. Create the Generation Endpoint
+def get_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    return math.sqrt((lat1 - lat2)**2 + (lon1 - lon2)**2)
+
 @app.post("/api/generate-butterfly")
 async def generate_butterfly(request: ButterflyRequest):
-    """
-    Receives geographic and visual data, and returns a generated butterfly image.
-    Currently mocked to unblock frontend development.
-    """
+    csv_file_path = "data/raw_metadata/nymphalidae_us_raw_2020_2024_humanobs.csv"
 
-    # TODO: In the future, this is where you will pass the request data
-    # to your Butterfly Generation Engine (the Purple Box).
-    print(f"Received request for lat: {request.latitude}, lon: {request.longitude}")
-    print(f"Requested features: {request.visual_features}")
+    if not os.path.exists(csv_file_path):
+        raise HTTPException(status_code=404, detail="Dataset not found. Run download_metadata.py first.")
 
-    # Mock Response: Return a hardcoded image URL so the frontend has something to display
-    dummy_image_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/Flickr_-_ggallice_-_Morpho_peleides.jpg/640px-Flickr_-_ggallice_-_Morpho_peleides.jpg"
+    closest_image_url = None
+    closest_species = None
+    shortest_distance = float('inf')
+
+    with open(csv_file_path, mode="r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if not row["lat"] or not row["lon"]:
+                continue
+
+            row_lat = float(row["lat"])
+            row_lon = float(row["lon"])
+
+            distance = get_distance(request.latitude, request.longitude, row_lat, row_lon)
+
+            if distance < shortest_distance:
+                shortest_distance = distance
+                closest_image_url = row["image_url"]
+                closest_species = row["species"]
+
+    if not closest_image_url:
+        closest_image_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/Flickr_-_ggallice_-_Morpho_peleides.jpg/640px-Flickr_-_ggallice_-_Morpho_peleides.jpg"
+        closest_species = "Mock Fallback"
 
     return {
         "status": "success",
-        "message": "This is a mock response. ML engine not yet connected.",
+        "message": f"Successfully 'generated' geographically accurate butterfly.",
         "input_received": {
             "latitude": request.latitude,
             "longitude": request.longitude,
             "visual_features": request.visual_features
         },
-        "image_url": dummy_image_url
+        "species": closest_species,
+        "image_url": closest_image_url
     }
