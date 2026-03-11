@@ -1,11 +1,13 @@
 """
 Main training script for CVAE on butterfly images with location conditioning.
 Implements β-annealing to prevent posterior collapse.
+Includes robust checkpointing, recovery, and logging for cloud training.
 """
 
 import os
 import sys
 import json
+import csv
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -14,6 +16,7 @@ import numpy as np
 from datetime import datetime
 from pathlib import Path
 from tqdm import tqdm
+import time
 
 # Import custom modules
 from config import get_config
@@ -120,7 +123,7 @@ class CVAETrainer:
         return beta
     
     def train_epoch(self, train_loader, epoch: int) -> dict:
-        """Train one epoch."""
+        """Train one epoch with aggressive checkpoint saving."""
         self.model.train()
         
         total_loss = 0.0
@@ -158,6 +161,15 @@ class CVAETrainer:
                 self.writer.add_scalar('train/recon_loss', recon_loss.item(), self.global_step)
                 self.writer.add_scalar('train/kl_loss', kl_loss.item(), self.global_step)
                 self.writer.add_scalar('train/beta', beta, self.global_step)
+                
+                # Log metrics to CSV
+                self.log_training_metrics(epoch, batch_idx, {
+                    'loss': loss.item(),
+                    'recon_loss': recon_loss.item(),
+                    'kl_loss': kl_loss.item(),
+                    'beta': beta,
+                    'learning_rate': self.optimizer.param_groups[0]['lr']
+                })
             
             pbar.set_postfix({
                 'loss': loss.item(),
@@ -165,6 +177,10 @@ class CVAETrainer:
                 'kl': kl_loss.item(),
                 'beta': beta
             })
+            
+            # Save recovery checkpoint every 50 steps (for resuming if interrupted)
+            if batch_idx % 50 == 0 and batch_idx > 0:
+                self.save_checkpoint(epoch, step=batch_idx, is_recovery=True)
             
             self.global_step += 1
         
@@ -222,21 +238,39 @@ class CVAETrainer:
             'kl_loss': avg_kl
         }
     
-    def save_checkpoint(self, epoch: int, is_best: bool = False):
-        """Save model checkpoint."""
+    def save_checkpoint(self, epoch: int, step: int = None, is_best: bool = False, is_recovery: bool = False):
+        """Save model checkpoint with recovery capability."""
         checkpoint = {
             'epoch': epoch,
+            'step': step,
+            'timestamp': time.time(),
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'config': self.config.__dict__,
             'global_step': self.global_step,
         }
         
-        # Save regular checkpoint
-        checkpoint_path = os.path.join(
-            self.config.output_dir,
-            f"{self.config.checkpoint_name}_epoch_{epoch:03d}.pt"
-        )
+        # Save recovery checkpoint (latest, for resuming)
+        if is_recovery:
+            recovery_path = os.path.join(
+                self.config.output_dir,
+                "recovery_latest.pt"
+            )
+            torch.save(checkpoint, recovery_path)
+            return
+        
+        # Save regular checkpoint with step info
+        if step is not None:
+            checkpoint_path = os.path.join(
+                self.config.output_dir,
+                f"ckpt_ep{epoch:03d}_step{step:06d}.pt"
+            )
+        else:
+            checkpoint_path = os.path.join(
+                self.config.output_dir,
+                f"ckpt_ep{epoch:03d}.pt"
+            )
+        
         torch.save(checkpoint, checkpoint_path)
         
         # Save best checkpoint
@@ -247,63 +281,134 @@ class CVAETrainer:
             )
             torch.save(checkpoint, best_path)
         
-        print(f"Checkpoint saved: {checkpoint_path}")
+        print(f"[Checkpoint] Saved: {Path(checkpoint_path).name}")
+        
+        # Clean up old checkpoints (keep only 3 latest)
+        self._cleanup_old_checkpoints(keep=3)
     
     def load_checkpoint(self, checkpoint_path: str):
         """Load model checkpoint."""
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.start_epoch = checkpoint['epoch'] + 1
-        self.global_step = checkpoint['global_step']
-        print(f"Checkpoint loaded from {checkpoint_path}")
+        self.start_epoch = checkpoint['epoch']
+        self.global_step = checkpoint.get('global_step', 0)
+        print(f"[Recovery] Loaded checkpoint: {Path(checkpoint_path).name}")
+        print(f"           Resuming from epoch {self.start_epoch + 1}")
+    
+    def _cleanup_old_checkpoints(self, keep: int = 3):
+        """Remove old checkpoints, keeping only the latest N."""
+        checkpoint_dir = Path(self.config.output_dir)
+        ckpts = sorted(checkpoint_dir.glob('ckpt_ep*.pt'))
+        
+        if len(ckpts) > keep:
+            for old_ckpt in ckpts[:-keep]:
+                old_ckpt.unlink()
+    
+    def find_latest_checkpoint(self):
+        """Find the latest checkpoint for recovery."""
+        checkpoint_dir = Path(self.config.output_dir)
+        
+        # First try recovery checkpoint (most recent)
+        recovery_ckpt = checkpoint_dir / "recovery_latest.pt"
+        if recovery_ckpt.exists():
+            return str(recovery_ckpt)
+        
+        # Fall back to latest epoch checkpoint
+        ckpts = sorted(checkpoint_dir.glob('ckpt_ep*.pt'))
+        if ckpts:
+            return str(ckpts[-1])
+        
+        return None
+    
+    def log_training_metrics(self, epoch: int, step: int, metrics: dict):
+        """Log training metrics to CSV for analysis."""
+        log_path = Path(self.config.output_dir) / "training_log.csv"
+        
+        log_entry = {
+            'timestamp': datetime.now().isoformat(),
+            'epoch': epoch,
+            'step': step,
+            'total_steps': self.global_step,
+            **metrics
+        }
+        
+        # Write header if file doesn't exist
+        if not log_path.exists():
+            with open(log_path, 'w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=log_entry.keys())
+                writer.writeheader()
+        
+        # Append metrics
+        with open(log_path, 'a', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=log_entry.keys())
+            writer.writerow(log_entry)
     
     def train(self, train_loader, val_loader):
-        """Full training loop."""
+        """Full training loop with recovery capability."""
         best_val_loss = float('inf')
         
+        # Check for recovery checkpoint
+        recovery_ckpt = self.find_latest_checkpoint()
+        if recovery_ckpt:
+            print(f"\n[Recovery] Found checkpoint: {Path(recovery_ckpt).name}")
+            response = input("Resume training from checkpoint? (y/n) ")
+            if response.lower() == 'y':
+                self.load_checkpoint(recovery_ckpt)
+        
         for epoch in range(self.start_epoch, self.config.epochs):
-            # Train
-            train_metrics = self.train_epoch(train_loader, epoch)
-            
-            # Validate
-            val_metrics = self.validate(val_loader, epoch)
-            
-            # Learning rate step
-            self.scheduler.step()
-            
-            # Print summary
-            print(f"\nEpoch {epoch+1}/{self.config.epochs}")
-            print(f"  Train - Loss: {train_metrics['loss']:.4f}, "
-                  f"Recon: {train_metrics['recon_loss']:.4f}, "
-                  f"KL: {train_metrics['kl_loss']:.4f}, "
-                  f"β: {train_metrics['beta']:.4f}")
-            print(f"  Val   - Loss: {val_metrics['loss']:.4f}, "
-                  f"Recon: {val_metrics['recon_loss']:.4f}, "
-                  f"KL: {val_metrics['kl_loss']:.4f}")
-            
-            # Save checkpoint
-            if (epoch + 1) % self.config.checkpoint_interval == 0:
+            try:
+                # Train
+                train_metrics = self.train_epoch(train_loader, epoch)
+                
+                # Validate
+                val_metrics = self.validate(val_loader, epoch)
+                
+                # Learning rate step
+                self.scheduler.step()
+                
+                # Print summary
+                print(f"\n[Epoch {epoch+1}/{self.config.epochs}]")
+                print(f"  Train - Loss: {train_metrics['loss']:.4f}, "
+                      f"Recon: {train_metrics['recon_loss']:.4f}, "
+                      f"KL: {train_metrics['kl_loss']:.4f}, "
+                      f"β: {train_metrics['beta']:.4f}")
+                print(f"  Val   - Loss: {val_metrics['loss']:.4f}, "
+                      f"Recon: {val_metrics['recon_loss']:.4f}, "
+                      f"KL: {val_metrics['kl_loss']:.4f}")
+                
+                # Save checkpoint every epoch
                 self.save_checkpoint(epoch)
+                
+                # Save best
+                if val_metrics['loss'] < best_val_loss:
+                    best_val_loss = val_metrics['loss']
+                    self.save_checkpoint(epoch, is_best=True)
             
-            # Save best
-            if val_metrics['loss'] < best_val_loss:
-                best_val_loss = val_metrics['loss']
-                self.save_checkpoint(epoch, is_best=True)
+            except KeyboardInterrupt:
+                print("\n[Interrupted] Saving recovery checkpoint...")
+                self.save_checkpoint(epoch, is_recovery=True)
+                print("Training paused. Run again to resume from checkpoint.")
+                return
+            except Exception as e:
+                print(f"\n[Error] {e}")
+                print("Saving recovery checkpoint...")
+                self.save_checkpoint(epoch, is_recovery=True)
+                raise
         
         self.writer.close()
-        print(f"\nTraining complete. Best validation loss: {best_val_loss:.4f}")
+        print(f"\n[Complete] Training finished. Best validation loss: {best_val_loss:.4f}")
         print(f"Models saved to {self.config.output_dir}")
 
 
 def main():
-    """Main training entry point."""
+    """Main training entry point with recovery capability."""
     config = get_config()
     
     print("\n" + "="*60)
     print("CVAE Training for Butterfly Location-Conditioned Generation")
     print("="*60)
-    print(f"Device: {config.device}")
+    print(f"Device: {config.device if torch.cuda.is_available() else 'CPU'}")
     print(f"Image size: {config.image_size}×{config.image_size}")
     print(f"Batch size: {config.batch_size}")
     print(f"Epochs: {config.epochs}")
@@ -315,7 +420,7 @@ def main():
     trainer = CVAETrainer(config)
     
     # Load data
-    print("Loading dataset...")
+    print("[1/3] Loading dataset...")
     try:
         train_loader, val_loader = ButterflyDataLoader.get_train_val_loaders(
             metadata_csv=config.metadata_csv,
@@ -329,18 +434,80 @@ def main():
             location_encoding=config.location_encoding,
             fourier_freqs=config.fourier_freqs
         )
+        print(f"✓ Loaded {len(train_loader)} training batches, {len(val_loader)} validation batches\n")
     except FileNotFoundError as e:
-        print(f"ERROR: {e}")
+        print(f"✗ ERROR: {e}")
         print("\nPlease ensure:")
-        print("1. Data has been downloaded (run download_metadata.py and download_filter_resumable.py)")
+        print("1. Data has been downloaded")
         print("2. Metadata CSV exists at:", config.metadata_csv)
         print("3. Images directory exists at:", config.images_dir)
         sys.exit(1)
     
     # Train
-    print(f"Starting training with {len(train_loader)} training batches "
-          f"and {len(val_loader)} validation batches...\n")
-    trainer.train(train_loader, val_loader)
+    print(f"[2/3] Starting training...")
+    print(f"      Output directory: {config.output_dir}\n")
+    try:
+        trainer.train(train_loader, val_loader)
+        print(f"\n[3/3] Generating sample images from trained model...")
+        generate_samples_from_checkpoint(
+            checkpoint_path=Path(config.output_dir) / f"{config.checkpoint_name}_best.pt",
+            config=config,
+            num_samples=10
+        )
+    except Exception as e:
+        print(f"\n✗ Training interrupted: {e}")
+        print("\nAttempting to generate samples from latest checkpoint...")
+        recovery_ckpt = trainer.find_latest_checkpoint()
+        if recovery_ckpt:
+            try:
+                generate_samples_from_checkpoint(recovery_ckpt, config, num_samples=10)
+            except Exception as gen_err:
+                print(f"Could not generate samples: {gen_err}")
+
+
+def generate_samples_from_checkpoint(checkpoint_path, config, num_samples: int = 10):
+    """Generate sample images from any checkpoint (useful if training interrupted)."""
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    if not Path(checkpoint_path).exists():
+        print(f"Checkpoint not found: {checkpoint_path}")
+        return
+    
+    # Load model
+    model = CVAE(
+        encoder_channels=config.encoder_channels,
+        decoder_channels=config.decoder_channels,
+        location_dim=config.location_dim,
+        latent_dim=config.latent_dim
+    ).to(device).eval()
+    
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    
+    from dataset import fourier_encode_location
+    from torchvision.utils import save_image
+    
+    sample_dir = Path(config.output_dir) / "samples"
+    sample_dir.mkdir(exist_ok=True)
+    
+    locations = [
+        (40.7128, -74.0060, "NYC"),
+        (34.0522, -118.2437, "LA"),
+        (51.5074, -0.1278, "London"),
+    ]
+    
+    with torch.no_grad():
+        for lat, lon, name in locations:
+            loc_emb = fourier_encode_location(lat, lon, config.fourier_freqs)
+            loc_emb = torch.from_numpy(loc_emb).float().to(device).unsqueeze(0)
+            
+            for i in range(num_samples // len(locations)):
+                z = torch.randn(1, config.latent_dim, device=device)
+                img = model.decode(z, loc_emb)
+                save_path = sample_dir / f"{name}_sample_{i}.jpg"
+                save_image(img, save_path)
+    
+    print(f"✓ Generated samples in: {sample_dir}")
 
 
 if __name__ == "__main__":

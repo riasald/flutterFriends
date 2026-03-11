@@ -20,7 +20,7 @@ class CVAEConfig:
     data_dir: str = "../data"
     metadata_csv: str = "../data/filtered_metadata/metadata_quality.csv"
     images_dir: str = "../data/images_licensed"
-    image_size: int = 512  # Target image resolution
+    image_size: int = 256  # Target image resolution
     
     # Metadata columns (adjust if schema differs)
     lat_column: str = "lat"
@@ -50,11 +50,11 @@ class CVAEConfig:
     location_dim: int = 128  # fourier_freqs * 2 * 2
     
     # ===== TRAINING HYPERPARAMETERS =====
-    batch_size: int = 32  # Per-batch size (cloud GPU: can handle 32+)
+    batch_size: int = 4  # Per-batch size (cloud GPU: can handle 32+)
     learning_rate: float = 1e-3
     weight_decay: float = 1e-4
     
-    epochs: int = 50  # Full convergence on cloud GPU
+    epochs: int = 3  # Full convergence on cloud GPU
     checkpoint_interval: int = 5  # Save checkpoint every N epochs
     
     # ===== KL DIVERGENCE SCHEDULING (CRITICAL FOR POSTERIOR COLLAPSE) =====
