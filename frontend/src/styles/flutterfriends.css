@@ -193,6 +193,53 @@
   border-radius: 30px;
 }
 
+.ff-mapFrameBig {
+  width: 100%;
+  height: 500px;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.ff-modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.ff-modalContent {
+  position: relative;
+  background: #fff4bf;
+  border-radius: 24px;
+  padding: 10px;
+  width: 95vw;
+  height: 95vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.ff-modalClose {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  border: none;
+  background: transparent;
+  font-size: 28px;
+  cursor: pointer;
+}
+
+.ff-butterflyModalImg {
+  transform: scale(2.5);   
+  transform-origin: center;
+}
+
 /* Responsive (stack on small screens) */
 @media (max-width: 1000px) {
   .ff-twoColumnLayout {

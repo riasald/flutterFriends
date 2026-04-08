@@ -1,67 +1,165 @@
 import "../styles/flutterfriends.css";
 import butterflyPng from "../assets/butterfly.png";
 import titlePng from "../assets/title.png";
+import { useState } from "react";
+import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import type { LeafletMouseEvent } from "leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
+delete (L.Icon.Default.prototype as L.Icon.Default & { _getIconUrl?: unknown })._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+type Position = {
+  lat: number;
+  lng: number;
+};
+
+type LocationMarkerProps = {
+  position: Position | null;
+  setPosition: React.Dispatch<React.SetStateAction<Position | null>>;
+};
+
+function LocationMarker({ position, setPosition }: LocationMarkerProps) {
+  useMapEvents({
+    click(e: LeafletMouseEvent) {
+      setPosition({
+        lat: e.latlng.lat,
+        lng: e.latlng.lng,
+      });
+    },
+  });
+
+  if (!position) return null;
+
+  return <Marker position={[position.lat, position.lng]} />;
+}
 
 export default function MapPage() {
-  //const locationName = "Gainesville, FL";
-  const lat = 29.652;
-  const lng = -82.325;
+  const defaultCenter: Position = {
+    lat: 29.652,
+    lng: -82.325,
+  };
 
-  const embedUrl = `https://www.google.com/maps?q=${lat},${lng}&z=10&output=embed`;
+  const [position, setPosition] = useState<Position | null>(defaultCenter);
+
+  const handleCustomizeButterfly = async () => {
+  if (!position) return;
+
+  const payload = {
+    latitude: position.lat,
+    longitude: position.lng,
+  };
+
+    console.log("Sending payload:", payload);
+
+    try {
+        await fetch("https://httpbin.org/post", { // temporary api endpoint that works
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        });
+    } catch (error) {
+        console.error("Error sending request:", error);
+    }
+    };
+
+  const [showButterflyModal, setShowButterflyModal] = useState(false);
 
   return (
     <div className="ff-page ff-babyYellow">
-    <header className="ff-headerSoft ff-headerRow">
-        <img
-            className="ff-titleImg"
-            src={titlePng}
-            alt="FlutterFriends"
-        />
+      <header className="ff-headerSoft ff-headerRow">
+        <img className="ff-titleImg" src={titlePng} alt="FlutterFriends" />
 
         <button
-            className="ff-pill ff-pillBig"
-            onClick={() => (window.location.href = "/login")}
+          className="ff-pill ff-pillBig"
+          onClick={() => (window.location.href = "/login")}
         >
-            Log Out
+          Log Out
         </button>
-    </header>
+      </header>
 
-    <main className="ff-mainSoft">
+      <main className="ff-mainSoft">
         <div className="ff-twoColumnLayout">
-
-            {/* LEFT BUBBLE */}
-            <section className="ff-bubble ff-butterflyCard">
-            <button className="ff-ctaSoft">
-                Customize Your Butterfly
+          <section className="ff-bubble ff-butterflyCard">
+            <button className="ff-ctaSoft" onClick={handleCustomizeButterfly}>
+              Customize Your Butterfly
             </button>
 
             <div className="ff-location">
-                📍 Location: Gainesville, FL <br />
-                29.6520° N, 82.3250° W
+              📍 Location:
+              <br />
+              {position
+                ? `${position.lat.toFixed(4)}°, ${position.lng.toFixed(4)}°`
+                : "Click on the map to select a location"}
             </div>
 
             <div className="ff-butterflyWrapClear">
-                <img
+              <img
                 src={butterflyPng}
                 alt="Butterfly"
                 className="ff-butterflyBig"
-                />
+              />
             </div>
 
-            <button className="ff-smallBtnSoft">⤢</button>
-            </section>
+            <button
+            className="ff-smallBtnSoft"
+            onClick={() => setShowButterflyModal(true)}
+            >
+            ⤢
+            </button>
+          </section>
 
-            {/* RIGHT BUBBLE */}
-            <section className="ff-bubble ff-mapBubble">
-            <iframe
-                className="ff-mapFrameBig"
-                src={embedUrl}
-                title="Map"
-            />
-            </section>
-
+          <section className="ff-bubble ff-mapBubble">
+            <MapContainer
+              center={[defaultCenter.lat, defaultCenter.lng]}
+              zoom={10}
+              scrollWheelZoom={true}
+              className="ff-mapFrameBig"
+            >
+              <TileLayer
+                attribution='&copy; OpenStreetMap contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              <LocationMarker position={position} setPosition={setPosition} />
+            </MapContainer>
+          </section>
         </div>
-    </main>
+      </main>
+            {showButterflyModal && (
+        <div
+            className="ff-modalOverlay"
+            onClick={() => setShowButterflyModal(false)}
+        >
+            <div
+            className="ff-modalContent"
+            onClick={(e) => e.stopPropagation()}
+            >
+            <button
+                className="ff-modalClose"
+                onClick={() => setShowButterflyModal(false)}
+            >
+                ✕
+            </button>
+
+            <img
+                src={butterflyPng}
+                alt="Enlarged Butterfly"
+                className="ff-butterflyModalImg"
+            />
+            </div>
+        </div>
+        )}
     </div>
   );
 }
