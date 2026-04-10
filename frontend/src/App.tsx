@@ -5,9 +5,9 @@ import MapPage from "./pages/MapPage";
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/home" element={<LoginPage />} />
       <Route path="/map" element={<MapPage />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>
   );
 }

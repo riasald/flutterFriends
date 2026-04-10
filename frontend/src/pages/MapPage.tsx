@@ -185,13 +185,6 @@ export default function MapPage() {
     <div className="ff-page ff-babyYellow">
       <header className="ff-headerSoft ff-headerRow">
         <img className="ff-titleImg" src={titlePng} alt="FlutterFriends" />
-
-        <button
-          className="ff-pill ff-pillBig"
-          onClick={() => (window.location.href = "/login")}
-        >
-          Log Out
-        </button>
       </header>
 
       <main className="ff-mainSoft">
