@@ -201,8 +201,6 @@ Make sure:
 
 ## Future Improvements
 
-* add informational slide explaining purpose
-* remove login
 * download button for images
 * UI revamp
 * animation while loading
