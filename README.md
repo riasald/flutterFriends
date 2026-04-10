@@ -201,7 +201,6 @@ Make sure:
 
 ## Future Improvements
 
-* add instructions for users
 * add informational slide explaining purpose
 * remove login
 * download button for images

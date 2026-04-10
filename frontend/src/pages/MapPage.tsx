@@ -202,7 +202,7 @@ export default function MapPage() {
               onClick={handleCustomizeButterfly}
               disabled={isLoading || !position}
             >
-              {isLoading ? "Generating Butterfly..." : "Create Your Butterfly"}
+              {isLoading ? "Creating Butterfly..." : "Create Your Butterfly"}
             </button>
               <div className="ff-instructions">
                 <strong>How to use:</strong>
