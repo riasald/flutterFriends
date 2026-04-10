@@ -211,18 +211,23 @@
   justify-content: center;
   align-items: center;
   z-index: 9999;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .ff-modalContent {
   position: relative;
   background: #fff4bf;
   border-radius: 24px;
-  padding: 10px;
-  width: 95vw;
-  height: 95vh;
+  padding: 20px;
+  max-width: 700px;
+  max-height: 85vh;
+  width: auto;
+  height: auto;
   display: flex;
   justify-content: center;
   align-items: center;
+  box-sizing: border-box;
 }
 
 .ff-modalClose {
@@ -230,14 +235,51 @@
   top: 10px;
   right: 14px;
   border: none;
-  background: transparent;
-  font-size: 28px;
+  background: white;
+  font-size: 24px;
   cursor: pointer;
+  border-radius: 999px;
+  width: 36px;
+  height: 36px;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .ff-butterflyModalImg {
-  transform: scale(2.5);   
-  transform-origin: center;
+  max-width: min(80vw, 600px);
+  max-height: 70vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  transform: none;
+}
+
+.ff-coordInputs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
+.ff-coordLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+  color: #5a3b00;
+}
+
+.ff-coordInput {
+  border: none;
+  outline: none;
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-size: 16px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #5a3b00;
+  box-shadow: inset 0 0 0 2px rgba(90, 59, 0, 0.08);
 }
 
 /* Responsive (stack on small screens) */
