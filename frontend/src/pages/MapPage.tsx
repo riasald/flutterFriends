@@ -48,6 +48,10 @@ type ButterflyResponse = {
   };
 };
 
+function isWithinUS(lat: number, lng: number) {
+  return lat >= 24.5 && lat <= 49.5 && lng >= -125 && lng <= -66.5;
+}
+
 function LocationMarker({
   position,
   setPosition,
@@ -56,15 +60,20 @@ function LocationMarker({
 }: LocationMarkerProps) {
   useMapEvents({
     click(e: LeafletMouseEvent) {
-      const newPos = {
-        lat: e.latlng.lat,
-        lng: e.latlng.lng,
-      };
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+
+      if (!isWithinUS(lat, lng)) {
+        alert("Please select a location within the United States 🇺🇸");
+        return;
+      }
+
+      const newPos = { lat, lng };
 
       setPosition(newPos);
       setLatInput(newPos.lat.toFixed(6));
       setLngInput(newPos.lng.toFixed(6));
-    },
+},
   });
 
   if (!position) return null;
@@ -120,12 +129,20 @@ export default function MapPage() {
       return;
     }
 
+    if (!isWithinUS(lat, lng)) {
+      setErrorMessage("Please choose a location within the United States 🇺🇸");
+      return;
+    }
+
     setErrorMessage(null);
     setPosition({ lat, lng });
   };
 
   const handleCustomizeButterfly = async () => {
-    if (!position) return;
+    if (!position || !isWithinUS(position.lat, position.lng)) {
+      setErrorMessage("Please select a valid US location before generating a butterfly.");
+      return;
+    }
 
     setIsLoading(true);
     setErrorMessage(null);
@@ -263,9 +280,13 @@ export default function MapPage() {
 
           <section className="ff-bubble ff-mapBubble">
             <MapContainer
-              center={[position?.lat ?? defaultCenter.lat, position?.lng ?? defaultCenter.lng]}
-              zoom={10}
-              scrollWheelZoom={true}
+              center={[defaultCenter.lat, defaultCenter.lng]}
+              zoom={5}
+              maxBounds={[
+                [24.5, -125],
+                [49.5, -66.5],
+              ]}
+              maxBoundsViscosity={1.0}
               className="ff-mapFrameBig"
             >
               <TileLayer

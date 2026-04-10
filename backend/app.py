@@ -48,6 +48,8 @@ class ButterflyRequest(BaseModel):
     num_outputs: int = 4
     samples_per_batch: int = 1
 
+def is_within_us(lat: float, lon: float) -> bool:
+    return 24.5 <= lat <= 49.5 and -125 <= lon <= -66.5
 
 @app.get("/health")
 def health() -> dict[str, str]:
@@ -56,6 +58,12 @@ def health() -> dict[str, str]:
 
 @app.post("/generate-butterfly")
 def generate_butterfly(req: ButterflyRequest) -> dict[str, Any]:
+    if not is_within_us(req.lat, req.lon):
+        raise HTTPException(
+            status_code=400,
+            detail="Coordinates must be within the United States."
+        )
+     
     payload = {
         "input": {
             "lat": req.lat,
