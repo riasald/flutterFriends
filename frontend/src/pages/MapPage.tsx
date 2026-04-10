@@ -202,8 +202,18 @@ export default function MapPage() {
               onClick={handleCustomizeButterfly}
               disabled={isLoading || !position}
             >
-              {isLoading ? "Generating Butterfly..." : "Customize Your Butterfly"}
+              {isLoading ? "Generating Butterfly..." : "Create Your Butterfly"}
             </button>
+              <div className="ff-instructions">
+                <strong>How to use:</strong>
+                <ol>
+                  <li>Click a location on the map 🇺🇸 OR enter coordinates below.</li>
+                  <li>Press <b>"Set Coordinates"</b> (if typing manually).</li>
+                  <li>Click <b>"Create Your Butterfly."</b></li>
+                  <li>Click ⤢ to enlarge your butterfly!</li>
+                </ol>
+              </div>
+            
 
             <div className="ff-location">
               📍 Location:

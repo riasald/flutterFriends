@@ -206,6 +206,7 @@ Make sure:
 * remove login
 * download button for images
 * UI revamp
+* animation while loading
 
 ---
 
