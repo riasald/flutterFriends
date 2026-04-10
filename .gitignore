@@ -27,3 +27,6 @@ Thumbs.db
 .vscode/
 .idea/
 __pycache__/
+
+*.env
+node_modules

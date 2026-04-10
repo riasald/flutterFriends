@@ -28,6 +28,24 @@ type LocationMarkerProps = {
   setPosition: React.Dispatch<React.SetStateAction<Position | null>>;
 };
 
+type ButterflyResponse = {
+  job_id: string;
+  status: string;
+  image_url: string;
+  report?: {
+    top_species?: Array<{
+      rank: number;
+      species: string;
+      probability: number;
+    }>;
+    selected?: Array<{
+      rank: number;
+      quality_score: number;
+      foreground_luminance: number;
+    }>;
+  };
+};
+
 function LocationMarker({ position, setPosition }: LocationMarkerProps) {
   useMapEvents({
     click(e: LeafletMouseEvent) {
@@ -43,6 +61,8 @@ function LocationMarker({ position, setPosition }: LocationMarkerProps) {
   return <Marker position={[position.lat, position.lng]} />;
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+
 export default function MapPage() {
   const defaultCenter: Position = {
     lat: 29.652,
@@ -50,31 +70,55 @@ export default function MapPage() {
   };
 
   const [position, setPosition] = useState<Position | null>(defaultCenter);
+  const [showButterflyModal, setShowButterflyModal] = useState(false);
+  const [generatedButterflyUrl, setGeneratedButterflyUrl] = useState<string | null>(null);
+  const [report, setReport] = useState<ButterflyResponse["report"] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const displayedButterfly = generatedButterflyUrl ?? butterflyPng;
 
   const handleCustomizeButterfly = async () => {
-  if (!position) return;
+    if (!position) return;
 
-  const payload = {
-    latitude: position.lat,
-    longitude: position.lng,
-  };
-
-    console.log("Sending payload:", payload);
+    setIsLoading(true);
+    setErrorMessage(null);
 
     try {
-        await fetch("https://httpbin.org/post", { // temporary api endpoint that works
+      const payload = {
+        lat: position.lat,
+        lon: position.lng,
+        num_candidates: 4,
+        num_outputs: 4,
+        samples_per_batch: 1,
+      };
+
+      console.log("Sending payload:", payload);
+
+      const response = await fetch(`${API_BASE_URL}/generate-butterfly`, {
         method: "POST",
         headers: {
-            "Content-Type": "application/json",
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
-        });
-    } catch (error) {
-        console.error("Error sending request:", error);
-    }
-    };
+      });
 
-  const [showButterflyModal, setShowButterflyModal] = useState(false);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Failed to generate butterfly");
+      }
+
+      const result = data as ButterflyResponse;
+      setGeneratedButterflyUrl(result.image_url);
+      setReport(result.report ?? null);
+    } catch (error) {
+      console.error("Error generating butterfly:", error);
+      setErrorMessage(error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="ff-page ff-babyYellow">
@@ -92,8 +136,12 @@ export default function MapPage() {
       <main className="ff-mainSoft">
         <div className="ff-twoColumnLayout">
           <section className="ff-bubble ff-butterflyCard">
-            <button className="ff-ctaSoft" onClick={handleCustomizeButterfly}>
-              Customize Your Butterfly
+            <button
+              className="ff-ctaSoft"
+              onClick={handleCustomizeButterfly}
+              disabled={isLoading || !position}
+            >
+              {isLoading ? "Generating Butterfly..." : "Customize Your Butterfly"}
             </button>
 
             <div className="ff-location">
@@ -104,20 +152,39 @@ export default function MapPage() {
                 : "Click on the map to select a location"}
             </div>
 
+            {errorMessage && (
+              <div style={{ color: "#b00020", marginTop: "12px" }}>
+                Error: {errorMessage}
+              </div>
+            )}
+
             <div className="ff-butterflyWrapClear">
               <img
-                src={butterflyPng}
+                src={displayedButterfly}
                 alt="Butterfly"
                 className="ff-butterflyBig"
               />
             </div>
 
             <button
-            className="ff-smallBtnSoft"
-            onClick={() => setShowButterflyModal(true)}
+              className="ff-smallBtnSoft"
+              onClick={() => setShowButterflyModal(true)}
             >
-            ⤢
+              ⤢
             </button>
+
+            {report?.top_species && report.top_species.length > 0 && (
+              <div style={{ marginTop: "16px", textAlign: "left" }}>
+                <strong>Top species:</strong>
+                <ul>
+                  {report.top_species.slice(0, 5).map((item) => (
+                    <li key={`${item.rank}-${item.species}`}>
+                      {item.rank}. {item.species} ({item.probability.toFixed(4)})
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </section>
 
           <section className="ff-bubble ff-mapBubble">
@@ -128,7 +195,7 @@ export default function MapPage() {
               className="ff-mapFrameBig"
             >
               <TileLayer
-                attribution='&copy; OpenStreetMap contributors'
+                attribution="&copy; OpenStreetMap contributors"
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
               <LocationMarker position={position} setPosition={setPosition} />
@@ -136,30 +203,31 @@ export default function MapPage() {
           </section>
         </div>
       </main>
-            {showButterflyModal && (
+
+      {showButterflyModal && (
         <div
-            className="ff-modalOverlay"
-            onClick={() => setShowButterflyModal(false)}
+          className="ff-modalOverlay"
+          onClick={() => setShowButterflyModal(false)}
         >
-            <div
+          <div
             className="ff-modalContent"
             onClick={(e) => e.stopPropagation()}
-            >
+          >
             <button
-                className="ff-modalClose"
-                onClick={() => setShowButterflyModal(false)}
+              className="ff-modalClose"
+              onClick={() => setShowButterflyModal(false)}
             >
-                ✕
+              ✕
             </button>
 
             <img
-                src={butterflyPng}
-                alt="Enlarged Butterfly"
-                className="ff-butterflyModalImg"
+              src={displayedButterfly}
+              alt="Enlarged Butterfly"
+              className="ff-butterflyModalImg"
             />
-            </div>
+          </div>
         </div>
-        )}
+      )}
     </div>
   );
 }
