@@ -255,6 +255,33 @@
   transform: none;
 }
 
+.ff-coordInputs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
+.ff-coordLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+  color: #5a3b00;
+}
+
+.ff-coordInput {
+  border: none;
+  outline: none;
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-size: 16px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #5a3b00;
+  box-shadow: inset 0 0 0 2px rgba(90, 59, 0, 0.08);
+}
+
 /* Responsive (stack on small screens) */
 @media (max-width: 1000px) {
   .ff-twoColumnLayout {

@@ -26,6 +26,8 @@ type Position = {
 type LocationMarkerProps = {
   position: Position | null;
   setPosition: React.Dispatch<React.SetStateAction<Position | null>>;
+  setLatInput: React.Dispatch<React.SetStateAction<string>>;
+  setLngInput: React.Dispatch<React.SetStateAction<string>>;
 };
 
 type ButterflyResponse = {
@@ -46,19 +48,38 @@ type ButterflyResponse = {
   };
 };
 
-function LocationMarker({ position, setPosition }: LocationMarkerProps) {
+function LocationMarker({
+  position,
+  setPosition,
+  setLatInput,
+  setLngInput,
+}: LocationMarkerProps) {
   useMapEvents({
     click(e: LeafletMouseEvent) {
-      setPosition({
+      const newPos = {
         lat: e.latlng.lat,
         lng: e.latlng.lng,
-      });
+      };
+
+      setPosition(newPos);
+      setLatInput(newPos.lat.toFixed(6));
+      setLngInput(newPos.lng.toFixed(6));
     },
   });
 
   if (!position) return null;
 
   return <Marker position={[position.lat, position.lng]} />;
+}
+
+function RecenterMap({ position }: { position: Position | null }) {
+  const map = useMapEvents({});
+
+  if (position) {
+    map.flyTo([position.lat, position.lng], map.getZoom());
+  }
+
+  return null;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -70,6 +91,8 @@ export default function MapPage() {
   };
 
   const [position, setPosition] = useState<Position | null>(defaultCenter);
+  const [latInput, setLatInput] = useState(defaultCenter.lat.toFixed(6));
+  const [lngInput, setLngInput] = useState(defaultCenter.lng.toFixed(6));
   const [showButterflyModal, setShowButterflyModal] = useState(false);
   const [generatedButterflyUrl, setGeneratedButterflyUrl] = useState<string | null>(null);
   const [report, setReport] = useState<ButterflyResponse["report"] | null>(null);
@@ -77,6 +100,29 @@ export default function MapPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const displayedButterfly = generatedButterflyUrl ?? butterflyPng;
+
+  const handleSetCoordinates = () => {
+    const lat = Number(latInput);
+    const lng = Number(lngInput);
+
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      setErrorMessage("Please enter valid numbers for latitude and longitude.");
+      return;
+    }
+
+    if (lat < -90 || lat > 90) {
+      setErrorMessage("Latitude must be between -90 and 90.");
+      return;
+    }
+
+    if (lng < -180 || lng > 180) {
+      setErrorMessage("Longitude must be between -180 and 180.");
+      return;
+    }
+
+    setErrorMessage(null);
+    setPosition({ lat, lng });
+  };
 
   const handleCustomizeButterfly = async () => {
     if (!position) return;
@@ -92,8 +138,6 @@ export default function MapPage() {
         num_outputs: 4,
         samples_per_batch: 1,
       };
-
-      console.log("Sending payload:", payload);
 
       const response = await fetch(`${API_BASE_URL}/generate-butterfly`, {
         method: "POST",
@@ -149,7 +193,37 @@ export default function MapPage() {
               <br />
               {position
                 ? `${position.lat.toFixed(4)}°, ${position.lng.toFixed(4)}°`
-                : "Click on the map to select a location"}
+                : "Click on the map or type coordinates"}
+            </div>
+
+            <div className="ff-coordInputs">
+              <label className="ff-coordLabel">
+                Latitude
+                <input
+                  className="ff-coordInput"
+                  type="number"
+                  step="any"
+                  value={latInput}
+                  onChange={(e) => setLatInput(e.target.value)}
+                  placeholder="e.g. 29.6516"
+                />
+              </label>
+
+              <label className="ff-coordLabel">
+                Longitude
+                <input
+                  className="ff-coordInput"
+                  type="number"
+                  step="any"
+                  value={lngInput}
+                  onChange={(e) => setLngInput(e.target.value)}
+                  placeholder="e.g. -82.3248"
+                />
+              </label>
+
+              <button className="ff-orangeBtn" onClick={handleSetCoordinates}>
+                Set Coordinates
+              </button>
             </div>
 
             {errorMessage && (
@@ -189,7 +263,7 @@ export default function MapPage() {
 
           <section className="ff-bubble ff-mapBubble">
             <MapContainer
-              center={[defaultCenter.lat, defaultCenter.lng]}
+              center={[position?.lat ?? defaultCenter.lat, position?.lng ?? defaultCenter.lng]}
               zoom={10}
               scrollWheelZoom={true}
               className="ff-mapFrameBig"
@@ -198,7 +272,15 @@ export default function MapPage() {
                 attribution="&copy; OpenStreetMap contributors"
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
-              <LocationMarker position={position} setPosition={setPosition} />
+
+              <RecenterMap position={position} />
+
+              <LocationMarker
+                position={position}
+                setPosition={setPosition}
+                setLatInput={setLatInput}
+                setLngInput={setLngInput}
+              />
             </MapContainer>
           </section>
         </div>
