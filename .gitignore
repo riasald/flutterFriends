@@ -28,5 +28,7 @@ Thumbs.db
 .idea/
 __pycache__/
 
+
 *.env
 node_modules
+*.png
