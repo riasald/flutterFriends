@@ -1,22 +1,22 @@
-import requests
-# super basic python example call to runpod. better version below.
-headers = {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer YOUR_API_KEY"
-}
+# import requests
+# # super basic python example call to runpod. better version below.
+# headers = {
+#     "Content-Type": "application/json",
+#     "Authorization": "Bearer apikeygoeshere"
+# }
 
-data = {
-  "input": {
-    "lat": 29.6516,
-    "lon": -82.3248,
-    "num_candidates": 1,
-    "num_outputs": 1,
-    "samples_per_batch": 1
-  }
-}
+# data = {
+#   "input": {
+#     "lat": 29.6516,
+#     "lon": -82.3248,
+#     "num_candidates": 1,
+#     "num_outputs": 1,
+#     "samples_per_batch": 1
+#   }
+# }
 
 
-response = requests.post('https://api.runpod.ai/v2/m8q4fur9v0n4cu/run', headers=headers, json=data)
+# response = requests.post('https://api.runpod.ai/v2/m8q4fur9v0n4cu/run', headers=headers, json=data)
 
 
 
@@ -24,12 +24,16 @@ response = requests.post('https://api.runpod.ai/v2/m8q4fur9v0n4cu/run', headers=
 
 import base64
 import json
+import os
 import time
 from pathlib import Path
+from dotenv import load_dotenv
 
+load_dotenv()
+
+API_KEY = os.getenv("API_KEY")
 import requests
 
-API_KEY = "YOUR_RUNPOD_API_KEY"
 ENDPOINT_ID = "m8q4fur9v0n4cu"
 
 RUN_URL = f"https://api.runpod.ai/v2/{ENDPOINT_ID}/run"
@@ -51,6 +55,8 @@ payload = {
 }
 
 run_resp = requests.post(RUN_URL, headers=headers, json=payload, timeout=60)
+print(f"Response status: {run_resp.status_code}")
+print(f"Response body: {run_resp.text}")
 run_resp.raise_for_status()
 run_data = run_resp.json()
 
