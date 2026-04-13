@@ -3,31 +3,6 @@ import { MapContainer, TileLayer } from "react-leaflet";
 import "../styles/loginPageRedesign.css";
 import logoPng from "../assets/FlutterFriendsLogo.png";
 
-function DecorativeButterflySvg() {
-  return (
-    <svg width="110" height="92" viewBox="0 0 150 126" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-      <ellipse cx="48" cy="44" rx="42" ry="32" fill="#FFD1DC" opacity="0.88" />
-      <ellipse cx="102" cy="44" rx="42" ry="32" fill="#FFD1DC" opacity="0.88" />
-      <ellipse cx="44" cy="82" rx="30" ry="22" fill="#FFD1DC" opacity="0.75" />
-      <ellipse cx="106" cy="82" rx="30" ry="22" fill="#FFD1DC" opacity="0.75" />
-      <ellipse cx="48" cy="44" rx="28" ry="20" fill="#FDFD96" opacity="0.72" />
-      <ellipse cx="102" cy="44" rx="28" ry="20" fill="#FDFD96" opacity="0.72" />
-      <ellipse cx="46" cy="84" rx="18" ry="14" fill="#FDFD96" opacity="0.6" />
-      <ellipse cx="104" cy="84" rx="18" ry="14" fill="#FDFD96" opacity="0.6" />
-      <ellipse cx="48" cy="44" rx="12" ry="9" fill="#f5a8c0" opacity="0.42" />
-      <ellipse cx="102" cy="44" rx="12" ry="9" fill="#f5a8c0" opacity="0.42" />
-      <ellipse cx="52" cy="46" rx="5" ry="4" fill="#fff" opacity="0.32" />
-      <ellipse cx="98" cy="46" rx="5" ry="4" fill="#fff" opacity="0.32" />
-      <rect x="72" y="28" width="6" height="62" rx="3" fill="#3a2010" />
-      <rect x="73.5" y="30" width="3" height="58" rx="1.5" fill="#6a4030" opacity="0.55" />
-      <line x1="75" y1="32" x2="66" y2="18" stroke="#3a2010" strokeWidth="1.3" strokeLinecap="round" />
-      <line x1="75" y1="32" x2="84" y2="18" stroke="#3a2010" strokeWidth="1.3" strokeLinecap="round" />
-      <circle cx="65" cy="17" r="2.2" fill="#3a2010" />
-      <circle cx="85" cy="17" r="2.2" fill="#3a2010" />
-    </svg>
-  );
-}
-
 export default function LoginPage() {
   return (
     <div className="login-page-redesign">

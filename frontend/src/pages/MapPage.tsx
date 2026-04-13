@@ -1,5 +1,4 @@
 import "../styles/mapPageRedesign.css";
-import butterflyPng from "../assets/butterfly.png";
 import logoPng from "../assets/FlutterFriendsLogo.png";
 import {
   useEffect,
@@ -8,6 +7,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
 import type { LeafletMouseEvent } from "leaflet";
 import L from "leaflet";
@@ -140,10 +140,23 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000
 
 function CtaButterflyIcon() {
   return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8a3055" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
-      <path d="M12 12c-2-2.5-4-4-6-4a4 4 0 0 0 0 8c2 0 4-1.5 6-4z" />
-      <path d="M12 12c2-2.5 4-4 6-4a4 4 0 0 1 0 8c-2 0-4-1.5-6-4z" />
-      <path d="M12 12v-2M12 14c0 2-.5 4-1 5M12 14c0 2 .5 4 1 5" />
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#8a3055"
+      strokeWidth="1.45"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M9.5 2.5 8 0.75M14.5 2.5 16 0.75" />
+      <path d="M12 3.25v16.5" />
+      <path d="M12 5.75C7 4 2.5 7.5 4 11.75c1.25 3.75 5.75 4.25 8 2.75" />
+      <path d="M12 5.75C17 4 21.5 7.5 20 11.75c-1.25 3.75-5.75 4.25-8 2.75" />
+      <path d="M12 11.25C7.25 11.75 3.5 14.25 5.25 17.75 6.75 20.25 9.75 19.5 12 17.5" />
+      <path d="M12 11.25C16.75 11.75 20.5 14.25 18.75 17.75 17.25 20.25 14.25 19.5 12 17.5" />
     </svg>
   );
 }
@@ -157,6 +170,8 @@ function ExpandCornerIcon() {
 }
 
 export default function MapPage() {
+  const navigate = useNavigate();
+
   const defaultCenter: Position = {
     lat: 29.652,
     lng: -82.325,
@@ -206,6 +221,17 @@ export default function MapPage() {
     setPosition({ lat, lng });
   };
 
+  const handleCancelButterfly = () => {
+    setIsLoading(false);
+    setShowButterflyModal(false);
+    setGeneratedButterflyUrl(null);
+    setReport(null);
+    setErrorMessage(null);
+    setPosition({ ...defaultCenter });
+    setLatInput(defaultCenter.lat.toFixed(6));
+    setLngInput(defaultCenter.lng.toFixed(6));
+  };
+
   const handleCustomizeButterfly = async () => {
     if (!position || !isWithinUS(position.lat, position.lng)) {
       setErrorMessage("Please select a valid US location before generating a butterfly.");
@@ -217,14 +243,12 @@ export default function MapPage() {
 
     try {
       const payload = {
-        lat: position.lat,
-        lon: position.lng,
-        num_candidates: 4,
-        num_outputs: 4,
-        samples_per_batch: 1,
+        latitude: position.lat,
+        longitude: position.lng,
+        visual_features: [] as string[],
       };
 
-      const response = await fetch(`${API_BASE_URL}/generate-butterfly`, {
+      const response = await fetch(`${API_BASE_URL}/api/generate-butterfly`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -269,11 +293,14 @@ export default function MapPage() {
           <span className="mr-logo-dot" />
           <span className="mr-friends">friends</span>
         </div>
-        <span className="mr-badge">Butterfly Mapper</span>
+        <button type="button" className="mr-back-btn" onClick={() => navigate("/")}>
+          ← Back
+        </button>
       </header>
 
       <div className="mr-main">
         <aside className="mr-sidebar">
+          <div className="mr-sidebar-inner">
           <div className="mr-hint-pill">
             <div className="mr-hint-icon">✦</div>
             <div className="mr-hint-text">
@@ -359,6 +386,13 @@ export default function MapPage() {
               </div>
             </>
           ) : null}
+          </div>
+
+          <div className="mr-sidebar-footer">
+            <button type="button" className="mr-cancel-btn" onClick={handleCancelButterfly}>
+              Cancel
+            </button>
+          </div>
         </aside>
 
         <section className="mr-map-panel">
