@@ -1,5 +1,6 @@
 import "../styles/mapPageRedesign.css";
 import butterflyPng from "../assets/butterfly.png";
+import logoPng from "../assets/FlutterFriendsLogo.png";
 import {
   useEffect,
   useMemo,
@@ -170,7 +171,7 @@ export default function MapPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const displayedButterfly = generatedButterflyUrl ?? butterflyPng;
+  const displayedButterfly = generatedButterflyUrl ?? logoPng;
 
   const coordsPillText = useMemo(() => {
     if (!position) return "—";
@@ -216,12 +217,14 @@ export default function MapPage() {
 
     try {
       const payload = {
-        latitude: position.lat,
-        longitude: position.lng,
-        visual_features: [] as string[],
+        lat: position.lat,
+        lon: position.lng,
+        num_candidates: 4,
+        num_outputs: 4,
+        samples_per_batch: 1,
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/generate-butterfly`, {
+      const response = await fetch(`${API_BASE_URL}/generate-butterfly`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -231,6 +234,7 @@ export default function MapPage() {
 
       const text = await response.text();
       let data: unknown = null;
+
       try {
         data = text ? (JSON.parse(text) as unknown) : null;
       } catch {
@@ -243,9 +247,11 @@ export default function MapPage() {
 
       const result = data as ButterflyResponse;
       const imageUrl = result.image_url;
+
       if (!imageUrl) {
         throw new Error("Response did not include image_url");
       }
+
       setGeneratedButterflyUrl(imageUrl);
       setReport(result.report ?? null);
     } catch (error) {
@@ -255,7 +261,6 @@ export default function MapPage() {
       setIsLoading(false);
     }
   };
-
   return (
     <div className="map-page-redesign">
       <header className="mr-topbar">

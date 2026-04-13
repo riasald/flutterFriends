@@ -240,6 +240,12 @@
   pointer-events: none;
 }
 
+.login-logo-img {
+  width: 140px;
+  height: auto;
+  display: block;
+}
+
 @media (max-width: 520px) {
   .login-page-redesign .login-card {
     padding: 36px 24px 32px;

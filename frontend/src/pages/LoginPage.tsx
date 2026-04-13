@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { MapContainer, TileLayer } from "react-leaflet";
 import "../styles/loginPageRedesign.css";
+import logoPng from "../assets/FlutterFriendsLogo.png";
 
 function DecorativeButterflySvg() {
   return (
@@ -60,7 +61,7 @@ export default function LoginPage() {
 
       <main className="login-card">
         <div className="login-butterfly-wrap">
-          <DecorativeButterflySvg />
+          <img src={logoPng} alt="FlutterFriends Logo" className="login-logo-img" />
         </div>
 
         <h1 className="login-headline">
