@@ -5,9 +5,10 @@ import MapPage from "./pages/MapPage";
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<LoginPage />} />
       <Route path="/home" element={<LoginPage />} />
       <Route path="/map" element={<MapPage />} />
-      <Route path="*" element={<Navigate to="/home" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
