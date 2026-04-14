@@ -2,11 +2,11 @@ import base64
 import json
 import os
 import time
-from typing import Any
+from typing import Any, Optional, Tuple
 
 import requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -64,6 +64,215 @@ def is_within_us(lat: float, lon: float) -> bool:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+NOMINATIM_SEARCH = "https://nominatim.openstreetmap.org/search"
+NOMINATIM_REVERSE = "https://nominatim.openstreetmap.org/reverse"
+NOMINATIM_HEADERS = {
+    "User-Agent": "FlutterFriends/1.0 (https://github.com/flutterFriends; location search)",
+    "Accept-Language": "en",
+}
+
+
+def _nominatim_search(raw_query: str, limit: int, addressdetails: str) -> list:
+    query = f"{raw_query.strip()}, United States"
+    params = {
+        "q": query,
+        "format": "json",
+        "limit": str(limit),
+        "countrycodes": "us",
+        "addressdetails": addressdetails,
+    }
+    try:
+        resp = requests.get(
+            NOMINATIM_SEARCH,
+            params=params,
+            headers=NOMINATIM_HEADERS,
+            timeout=15,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        detail = getattr(e.response, "text", str(e)) if getattr(e, "response", None) else str(e)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Location search is temporarily unavailable. Try again in a moment. ({detail[:200]})",
+        ) from e
+
+    try:
+        data = resp.json()
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=502, detail="Unexpected response from location service.") from e
+
+    if not isinstance(data, list):
+        return []
+    return data
+
+
+def _parse_item_lat_lon(item: dict[str, Any]) -> Optional[Tuple[float, float]]:
+    lat_s = item.get("lat")
+    lon_s = item.get("lon")
+    if lat_s is None or lon_s is None:
+        return None
+    try:
+        return float(lat_s), float(lon_s)
+    except (TypeError, ValueError):
+        return None
+
+
+def _city_from_address(addr: dict[str, Any]) -> str | None:
+    for key in ("city", "town", "village", "hamlet", "municipality"):
+        v = addr.get(key)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    county = addr.get("county")
+    if isinstance(county, str) and county.strip():
+        return county.strip()
+    return None
+
+
+def _state_abbr_from_address(addr: dict[str, Any]) -> str | None:
+    iso = addr.get("ISO3166-2-l4")
+    if isinstance(iso, str) and iso.upper().startswith("US-"):
+        return iso[3:].upper()
+    st = addr.get("state")
+    if isinstance(st, str) and len(st.strip()) == 2:
+        return st.strip().upper()
+    return None
+
+
+def _short_place_label(item: dict[str, Any]) -> str:
+    addr = item.get("address")
+    if isinstance(addr, dict):
+        city = _city_from_address(addr)
+        st = _state_abbr_from_address(addr)
+        if city and st:
+            return f"{city}, {st}"
+    dn = item.get("display_name")
+    if isinstance(dn, str):
+        return dn[:90] + ("…" if len(dn) > 90 else "")
+    return "Unknown"
+
+
+def _detail_line(item: dict[str, Any]) -> str | None:
+    dn = item.get("display_name")
+    if not isinstance(dn, str) or not dn.strip():
+        return None
+    return dn[:140] + ("…" if len(dn) > 140 else "")
+
+
+@app.get("/api/geocode-suggest")
+def geocode_suggest(q: str = Query(default="", max_length=220)) -> dict[str, Any]:
+    """Typeahead: multiple U.S. hits inside the supported map bounds."""
+    raw = (q or "").strip()
+    if len(raw) < 2:
+        return {"results": []}
+
+    data = _nominatim_search(raw, 15, "1")
+    results: list[dict[str, Any]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        parsed = _parse_item_lat_lon(item)
+        if parsed is None:
+            continue
+        lat, lon = parsed
+        if not is_within_us(lat, lon):
+            continue
+        results.append(
+            {
+                "latitude": lat,
+                "longitude": lon,
+                "label": _short_place_label(item),
+                "detail": _detail_line(item),
+            }
+        )
+        if len(results) >= 8:
+            break
+
+    return {"results": results}
+
+
+@app.get("/api/reverse-geocode")
+def reverse_geocode(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+) -> dict[str, Any]:
+    """Map pin → short city, state label for the sidebar text field."""
+    if not is_within_us(lat, lon):
+        raise HTTPException(
+            status_code=400,
+            detail="Coordinates must be within the supported U.S. map area.",
+        )
+
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "format": "json",
+        "addressdetails": "1",
+    }
+    try:
+        resp = requests.get(
+            NOMINATIM_REVERSE,
+            params=params,
+            headers=NOMINATIM_HEADERS,
+            timeout=12,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        detail = getattr(e.response, "text", str(e)) if getattr(e, "response", None) else str(e)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Reverse geocoding failed ({detail[:160]}).",
+        ) from e
+
+    try:
+        data = resp.json()
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=502, detail="Unexpected response from location service.") from e
+
+    if not isinstance(data, dict):
+        return {"label": ""}
+
+    label = _short_place_label(data)
+    return {"label": label}
+
+
+@app.get("/api/geocode")
+def geocode_place(q: str = Query(default="", max_length=220)) -> dict[str, Any]:
+    """Resolve a U.S. ZIP, city, or free-text place to coordinates (OpenStreetMap Nominatim)."""
+    raw = (q or "").strip()
+    if len(raw) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="Enter at least 2 characters (for example a ZIP code or city name).",
+        )
+
+    data = _nominatim_search(raw, 10, "1")
+
+    if len(data) == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="No places matched that search. Try a ZIP code, “City, ST”, or a more specific address.",
+        )
+
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        parsed = _parse_item_lat_lon(item)
+        if parsed is None:
+            continue
+        lat, lon = parsed
+        if is_within_us(lat, lon):
+            return {
+                "latitude": lat,
+                "longitude": lon,
+                "label": _short_place_label(item),
+            }
+
+    raise HTTPException(
+        status_code=404,
+        detail="That place is outside the U.S. map area we support. Try a location within the contiguous U.S. or Hawaii.",
+    )
 
 
 def _generate_butterfly_core(req: ButterflyRequest) -> dict[str, Any]:

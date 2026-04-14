@@ -4,6 +4,7 @@ import logoPng from "../assets/FlutterFriendsLogo.png";
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -51,6 +52,13 @@ type ButterflyResponse = {
       foreground_luminance: number;
     }>;
   };
+};
+
+type SuggestItem = {
+  latitude: number;
+  longitude: number;
+  label: string;
+  detail: string | null;
 };
 
 function isWithinUS(lat: number, lng: number) {
@@ -120,8 +128,8 @@ function RecenterMap({ position }: { position: Position | null }) {
   return null;
 }
 
-function formatApiErrorBody(data: unknown): string {
-  if (!data || typeof data !== "object") return "Failed to generate butterfly";
+function formatApiErrorBody(data: unknown, fallbackMessage = "Failed to generate butterfly"): string {
+  if (!data || typeof data !== "object") return fallbackMessage;
   const detail = (data as { detail?: unknown }).detail;
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
@@ -134,7 +142,7 @@ function formatApiErrorBody(data: unknown): string {
       })
       .join("; ");
   }
-  return "Failed to generate butterfly";
+  return fallbackMessage;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -297,6 +305,13 @@ export default function MapPage() {
   const [report, setReport] = useState<ButterflyResponse["report"] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [placeQuery, setPlaceQuery] = useState("");
+  const [isSettingLocation, setIsSettingLocation] = useState(false);
+  const [suggestions, setSuggestions] = useState<SuggestItem[]>([]);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(0);
+  const [suggestNonce, setSuggestNonce] = useState(0);
+  const placeInputRef = useRef<HTMLInputElement>(null);
 
   const displayedButterfly = generatedButterflyUrl ?? logoPng;
 
@@ -305,32 +320,217 @@ export default function MapPage() {
     return formatCoordsPill(position.lat, position.lng);
   }, [position]);
 
-  const handleSetCoordinates = () => {
+  useEffect(() => {
+    if (!position) return undefined;
+    const ac = new AbortController();
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/reverse-geocode?lat=${encodeURIComponent(String(position.lat))}&lon=${encodeURIComponent(String(position.lng))}`,
+            { signal: ac.signal },
+          );
+          if (!response.ok) return;
+          const data = (await response.json()) as { label?: unknown };
+          if (typeof data.label === "string" && data.label.trim()) {
+            setPlaceQuery(data.label.trim());
+          }
+        } catch {
+          /* aborted or network */
+        }
+      })();
+    }, 400);
+    return () => {
+      window.clearTimeout(timer);
+      ac.abort();
+    };
+  }, [position?.lat, position?.lng]);
+
+  useEffect(() => {
+    const input = placeInputRef.current;
+    if (!input || document.activeElement !== input) {
+      return undefined;
+    }
+    const raw = placeQuery.trim();
+    if (raw.length < 2) {
+      setSuggestions([]);
+      setSuggestOpen(false);
+      return undefined;
+    }
+    const ac = new AbortController();
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/geocode-suggest?q=${encodeURIComponent(raw)}`,
+            { signal: ac.signal },
+          );
+          const text = await response.text();
+          let data: unknown = null;
+          try {
+            data = text ? (JSON.parse(text) as unknown) : null;
+          } catch {
+            return;
+          }
+          if (!response.ok) return;
+          const payload = data as { results?: unknown };
+          const list = Array.isArray(payload.results) ? payload.results : [];
+          const next: SuggestItem[] = [];
+          for (const entry of list) {
+            if (!entry || typeof entry !== "object") continue;
+            const o = entry as Record<string, unknown>;
+            const lat = Number(o.latitude);
+            const lng = Number(o.longitude);
+            const label = typeof o.label === "string" ? o.label : "";
+            if (!Number.isFinite(lat) || !Number.isFinite(lng) || !label.trim()) continue;
+            next.push({
+              latitude: lat,
+              longitude: lng,
+              label: label.trim(),
+              detail: typeof o.detail === "string" ? o.detail : null,
+            });
+          }
+          if (ac.signal.aborted) return;
+          setSuggestions(next);
+          setSuggestOpen(next.length > 0);
+          setHighlightIndex(0);
+        } catch {
+          if (!ac.signal.aborted) {
+            setSuggestions([]);
+            setSuggestOpen(false);
+          }
+        }
+      })();
+    }, 280);
+    return () => {
+      window.clearTimeout(timer);
+      ac.abort();
+    };
+  }, [placeQuery, suggestNonce]);
+
+  const applySuggestion = (item: SuggestItem) => {
+    setPlaceQuery(item.label);
+    setLatInput(item.latitude.toFixed(6));
+    setLngInput(item.longitude.toFixed(6));
+    setPosition({ lat: item.latitude, lng: item.longitude });
+    setSuggestions([]);
+    setSuggestOpen(false);
+    setHighlightIndex(0);
+    setErrorMessage(null);
+  };
+
+  /** Applies current latitude/longitude fields if they form a valid US map point. */
+  const applyLatLngFromInputs = (): boolean => {
     const lat = Number(latInput);
     const lng = Number(lngInput);
-
-    if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      setErrorMessage("Please enter valid numbers for latitude and longitude.");
-      return;
-    }
-
-    if (lat < -90 || lat > 90) {
-      setErrorMessage("Latitude must be between -90 and 90.");
-      return;
-    }
-
-    if (lng < -180 || lng > 180) {
-      setErrorMessage("Longitude must be between -180 and 180.");
-      return;
-    }
-
-    if (!isWithinUS(lat, lng)) {
-      setErrorMessage("Please choose a location within the United States 🇺🇸");
-      return;
-    }
-
-    setErrorMessage(null);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return false;
+    if (lat < -90 || lat > 90) return false;
+    if (lng < -180 || lng > 180) return false;
+    if (!isWithinUS(lat, lng)) return false;
+    setSuggestions([]);
+    setSuggestOpen(false);
     setPosition({ lat, lng });
+    return true;
+  };
+
+  const refreshPlaceLabelFromCoords = async (lat: number, lng: number) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/reverse-geocode?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lng))}`,
+      );
+      if (!response.ok) return;
+      const data = (await response.json()) as { label?: unknown };
+      if (typeof data.label === "string" && data.label.trim()) {
+        setPlaceQuery(data.label.trim());
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleSetLocation = async () => {
+    const trimmed = placeQuery.trim();
+
+    if (trimmed.length < 2) {
+      if (!applyLatLngFromInputs()) {
+        setErrorMessage("Enter a place above, or valid numbers for latitude and longitude.");
+        return;
+      }
+      setErrorMessage(null);
+      return;
+    }
+
+    setIsSettingLocation(true);
+    setErrorMessage(null);
+    setSuggestions([]);
+    setSuggestOpen(false);
+
+    try {
+      const url = `${API_BASE_URL}/api/geocode?q=${encodeURIComponent(trimmed)}`;
+      const response = await fetch(url);
+      const text = await response.text();
+      let data: unknown = null;
+      try {
+        data = text ? (JSON.parse(text) as unknown) : null;
+      } catch {
+        data = null;
+      }
+
+      if (response.ok && data && typeof data === "object") {
+        const payload = data as { latitude?: unknown; longitude?: unknown; label?: unknown };
+        const lat = Number(payload.latitude);
+        const lng = Number(payload.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lng) && isWithinUS(lat, lng)) {
+          setLatInput(lat.toFixed(6));
+          setLngInput(lng.toFixed(6));
+          setPosition({ lat, lng });
+          if (typeof payload.label === "string" && payload.label.trim()) {
+            setPlaceQuery(payload.label.trim());
+          }
+          return;
+        }
+      }
+
+      /*
+       * Forward geocode often fails for long reverse-geocoded labels (POI + street).
+       * If the text search fails but lat/lng already match the map, use those coordinates.
+       */
+      if (applyLatLngFromInputs()) {
+        const lat = Number(latInput);
+        const lng = Number(lngInput);
+        await refreshPlaceLabelFromCoords(lat, lng);
+        return;
+      }
+
+      const fallbackMsg =
+        data && typeof data === "object"
+          ? formatApiErrorBody(data, "Location search failed.")
+          : "No places matched that search.";
+      setErrorMessage(fallbackMsg);
+    } catch (error) {
+      console.error("Geocode error:", error);
+      if (applyLatLngFromInputs()) {
+        const lat = Number(latInput);
+        const lng = Number(lngInput);
+        await refreshPlaceLabelFromCoords(lat, lng);
+        setErrorMessage(null);
+        return;
+      }
+      setErrorMessage(error instanceof Error ? error.message : "Could not look up that location.");
+    } finally {
+      setIsSettingLocation(false);
+    }
+  };
+
+  const commitSuggestionOrSetLocation = async () => {
+    if (suggestOpen && suggestions.length > 0) {
+      const pick = suggestions[Math.min(highlightIndex, suggestions.length - 1)];
+      if (pick) {
+        applySuggestion(pick);
+        return;
+      }
+    }
+    await handleSetLocation();
   };
 
   const handleCancelButterfly = () => {
@@ -342,6 +542,9 @@ export default function MapPage() {
     setPosition({ ...defaultCenter });
     setLatInput(defaultCenter.lat.toFixed(6));
     setLngInput(defaultCenter.lng.toFixed(6));
+    setPlaceQuery("");
+    setSuggestions([]);
+    setSuggestOpen(false);
   };
 
   const handleDownloadButterfly = async () => {
@@ -437,8 +640,8 @@ export default function MapPage() {
           <div className="mr-hint-pill">
             <div className="mr-hint-icon">✦</div>
             <div className="mr-hint-text">
-              Click anywhere on the map to place your pin — or enter coordinates manually and press{" "}
-              <strong>Set coordinates</strong>.
+              Click the map to move the pin (the place field updates automatically), type a ZIP or city for suggestions, or
+              set latitude and longitude and press <strong>Set location</strong>.
             </div>
           </div>
 
@@ -469,9 +672,103 @@ export default function MapPage() {
                 />
               </div>
             </div>
-            <button type="button" className="mr-set-btn" onClick={handleSetCoordinates}>
-              Set coordinates
-            </button>
+            <div className="mr-or-divider" aria-hidden>
+              <span className="mr-or-line" />
+              <span className="mr-or-word">or</span>
+              <span className="mr-or-line" />
+            </div>
+
+            <div className="mr-place-field">
+              <label className="mr-coord-label" htmlFor="mr-place-search">
+                City, state, or ZIP
+              </label>
+              <div className="mr-place-autocomplete" id="mr-place-wrap">
+                <input
+                  ref={placeInputRef}
+                  id="mr-place-search"
+                  className="mr-coord-input mr-place-input"
+                  type="text"
+                  inputMode="text"
+                  autoComplete="off"
+                  placeholder="Enter zip code or city, state"
+                  value={placeQuery}
+                  role="combobox"
+                  aria-expanded={suggestOpen}
+                  aria-controls="mr-place-suggest-list"
+                  aria-autocomplete="list"
+                  onChange={(e) => setPlaceQuery(e.target.value)}
+                  onFocus={() => setSuggestNonce((n) => n + 1)}
+                  onBlur={(e) => {
+                    const next = e.relatedTarget as Node | null;
+                    const wrap = document.getElementById("mr-place-wrap");
+                    if (next && wrap?.contains(next)) return;
+                    window.setTimeout(() => setSuggestOpen(false), 180);
+                  }}
+                  onKeyDown={(e) => {
+                    if (suggestOpen && suggestions.length > 0) {
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setHighlightIndex((i) => Math.min(i + 1, suggestions.length - 1));
+                        return;
+                      }
+                      if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setHighlightIndex((i) => Math.max(i - 1, 0));
+                        return;
+                      }
+                      if (e.key === "Escape") {
+                        e.preventDefault();
+                        setSuggestOpen(false);
+                        return;
+                      }
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const pick = suggestions[Math.min(highlightIndex, suggestions.length - 1)];
+                        if (pick) applySuggestion(pick);
+                        return;
+                      }
+                    }
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void commitSuggestionOrSetLocation();
+                    }
+                  }}
+                  disabled={isSettingLocation || isLoading}
+                />
+                {suggestOpen && suggestions.length > 0 ? (
+                  <ul id="mr-place-suggest-list" className="mr-suggest-list" role="listbox">
+                    {suggestions.map((item, idx) => (
+                      <li key={`${item.latitude},${item.longitude},${item.label}`} role="presentation">
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={idx === highlightIndex}
+                          className={`mr-suggest-item${idx === highlightIndex ? " mr-suggest-item--active" : ""}`}
+                          onMouseDown={(ev) => {
+                            ev.preventDefault();
+                            applySuggestion(item);
+                          }}
+                          onMouseEnter={() => setHighlightIndex(idx)}
+                        >
+                          <span className="mr-suggest-item-label">{item.label}</span>
+                          {item.detail && item.detail !== item.label ? (
+                            <span className="mr-suggest-item-detail">{item.detail}</span>
+                          ) : null}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className="mr-set-btn"
+                onClick={() => void commitSuggestionOrSetLocation()}
+                disabled={isSettingLocation || isLoading}
+              >
+                {isSettingLocation ? "Setting location…" : "Set location"}
+              </button>
+            </div>
           </div>
 
           {errorMessage ? (

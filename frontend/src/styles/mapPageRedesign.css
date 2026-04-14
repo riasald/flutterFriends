@@ -346,6 +346,104 @@
   transform: scale(0.98);
 }
 
+.map-page-redesign .mr-or-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 2px;
+  width: 100%;
+}
+
+.map-page-redesign .mr-or-line {
+  flex: 1;
+  height: 0.5px;
+  min-width: 0;
+  background: linear-gradient(90deg, transparent, rgba(240, 160, 190, 0.5), transparent);
+}
+
+.map-page-redesign .mr-or-word {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #d499b0;
+  padding: 0 2px;
+}
+
+.map-page-redesign .mr-place-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.map-page-redesign .mr-place-autocomplete {
+  position: relative;
+  width: 100%;
+}
+
+.map-page-redesign .mr-place-input:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.map-page-redesign .mr-suggest-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 50;
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: rgba(255, 252, 248, 0.98);
+  border: 0.5px solid rgba(240, 160, 190, 0.45);
+  border-radius: 12px;
+  box-shadow: 0 10px 32px rgba(80, 40, 60, 0.12);
+}
+
+.map-page-redesign .mr-suggest-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  margin: 0;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  font-family: "DM Sans", sans-serif;
+  text-align: left;
+  cursor: pointer;
+  color: #4a3038;
+  transition: background 0.1s;
+}
+
+.map-page-redesign .mr-suggest-item:hover,
+.map-page-redesign .mr-suggest-item--active {
+  background: rgba(255, 220, 235, 0.55);
+}
+
+.map-page-redesign .mr-suggest-item-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b2845;
+}
+
+.map-page-redesign .mr-suggest-item-detail {
+  font-size: 11px;
+  font-weight: 400;
+  color: #9a7088;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .map-page-redesign .mr-butterfly-card {
   background: rgba(255, 240, 248, 0.45);
   border: 0.5px solid rgba(255, 185, 210, 0.35);
