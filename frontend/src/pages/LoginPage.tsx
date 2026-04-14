@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { MapContainer, TileLayer } from "react-leaflet";
+import { LogoButterflyMark } from "../components/LogoButterflyMark";
 import "../styles/loginPageRedesign.css";
 import logoPng from "../assets/FlutterFriendsLogo.png";
 
@@ -28,10 +29,9 @@ export default function LoginPage() {
       <header className="login-topbar">
         <div className="login-logo">
           <span className="login-flutter">flutter</span>
-          <span className="login-logo-dot" />
+          <LogoButterflyMark className="login-logo-butterfly" />
           <span className="login-friends">friends</span>
         </div>
-        <span className="login-badge">Butterfly Mapper</span>
       </header>
 
       <main className="login-card">

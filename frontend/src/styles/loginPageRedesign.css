@@ -58,7 +58,7 @@
   padding: 14px 28px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   z-index: 10;
 }
 
@@ -76,25 +76,17 @@
   color: #e88faa;
 }
 
-.login-page-redesign .login-logo-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #f5b8cd;
-  margin: 0 2px 1px;
+.login-page-redesign .login-logo-butterfly {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   vertical-align: middle;
+  margin: 0 1px 4px;
+  line-height: 0;
 }
 
-.login-page-redesign .login-badge {
-  background: rgba(253, 243, 150, 0.75);
-  color: #8a7000;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 4px 12px;
-  border-radius: 99px;
-  border: 0.5px solid rgba(210, 170, 0, 0.22);
-  letter-spacing: 0.3px;
+.login-page-redesign .login-logo-butterfly .logo-butterfly-mark-svg {
+  display: block;
 }
 
 .login-page-redesign .login-card {

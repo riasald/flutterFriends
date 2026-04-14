@@ -48,22 +48,31 @@ class ButterflyRequest(BaseModel):
     num_outputs: int = 4
     samples_per_batch: int = 1
 
+
+class ApiGenerateButterflyRequest(BaseModel):
+    """Same coordinates as the Vite app (`MapPage.tsx`) uses for `/api/generate-butterfly`."""
+
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    visual_features: list[str] = Field(default_factory=list)
+
+
 def is_within_us(lat: float, lon: float) -> bool:
     return 24.5 <= lat <= 49.5 and -125 <= lon <= -66.5
+
 
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/generate-butterfly")
-def generate_butterfly(req: ButterflyRequest) -> dict[str, Any]:
+def _generate_butterfly_core(req: ButterflyRequest) -> dict[str, Any]:
     if not is_within_us(req.lat, req.lon):
         raise HTTPException(
             status_code=400,
-            detail="Coordinates must be within the United States."
+            detail="Coordinates must be within the United States.",
         )
-     
+
     payload = {
         "input": {
             "lat": req.lat,
@@ -79,7 +88,7 @@ def generate_butterfly(req: ButterflyRequest) -> dict[str, Any]:
         run_resp.raise_for_status()
     except requests.RequestException as e:
         detail = getattr(e.response, "text", str(e))
-        raise HTTPException(status_code=502, detail=f"Failed to submit RunPod job: {detail}")
+        raise HTTPException(status_code=502, detail=f"Failed to submit RunPod job: {detail}") from e
 
     run_data = run_resp.json()
     job_id = run_data.get("id")
@@ -95,7 +104,7 @@ def generate_butterfly(req: ButterflyRequest) -> dict[str, Any]:
             status_resp.raise_for_status()
         except requests.RequestException as e:
             detail = getattr(e.response, "text", str(e))
-            raise HTTPException(status_code=502, detail=f"Failed to poll RunPod status: {detail}")
+            raise HTTPException(status_code=502, detail=f"Failed to poll RunPod status: {detail}") from e
 
         status_data = status_resp.json()
         status = status_data.get("status")
@@ -126,6 +135,18 @@ def generate_butterfly(req: ButterflyRequest) -> dict[str, Any]:
         time.sleep(5)
 
     raise HTTPException(status_code=504, detail="Timed out waiting for RunPod job to complete")
+
+
+@app.post("/generate-butterfly")
+def generate_butterfly(req: ButterflyRequest) -> dict[str, Any]:
+    return _generate_butterfly_core(req)
+
+
+@app.post("/api/generate-butterfly")
+def generate_butterfly_api_alias(req: ApiGenerateButterflyRequest) -> dict[str, Any]:
+    """Frontend calls this path and JSON shape; forwards to RunPod flow."""
+    core = ButterflyRequest(lat=req.latitude, lon=req.longitude)
+    return _generate_butterfly_core(core)
 
 
 if __name__ == "__main__":

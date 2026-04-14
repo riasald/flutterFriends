@@ -1,3 +1,4 @@
+import { LogoButterflyMark } from "../components/LogoButterflyMark";
 import "../styles/mapPageRedesign.css";
 import logoPng from "../assets/FlutterFriendsLogo.png";
 import {
@@ -138,6 +139,24 @@ function formatApiErrorBody(data: unknown): string {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
+function fileExtensionForImageMime(mime: string): "jpg" | "png" {
+  const m = mime.toLowerCase();
+  if (m.includes("jpeg") || m.includes("jpg")) return "jpg";
+  return "png";
+}
+
 function CtaButterflyIcon() {
   return (
     <svg
@@ -161,11 +180,104 @@ function CtaButterflyIcon() {
   );
 }
 
-function ExpandCornerIcon() {
+function EnlargeOutwardArrowsIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#d499b0" strokeWidth="1.2" aria-hidden>
-      <path d="M7 1h4v4M5 7L11 1M1 5v6h6" />
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path
+        d="M6 6 2.5 2.5m0 0L4.5 2.5M2.5 2.5 2.5 4.5M8 8l3.5 3.5m0 0L9.5 11.5M11.5 11.5 11.5 9.5"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
+  );
+}
+
+function DownloadTrayIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+/** Top-down 4-wing loader: fore + hind per side, flat dusty pink + rose veins (reference art). */
+function LoadingButterflyPlaceholder() {
+  const wingFill = "#f2c4d4";
+  const wingStroke = "#b86d88";
+  const veinStroke = "#c47a92";
+  const bodyStroke = "#4a1f30";
+  const bodyFill = "#5c2838";
+
+  return (
+    <div className="mr-butterfly-loading-slot" role="status" aria-live="polite" aria-label="Creating your butterfly">
+      <div className="mr-loading-bfly-track">
+        <div className="mr-loading-bfly-mover">
+          <svg className="mr-loading-bfly-svg" viewBox="-38 -24 76 48" fill="none" aria-hidden>
+            <g className="mr-loading-bfly-wing-l" strokeLinecap="round" strokeLinejoin="round">
+              <path
+                d="M 0 -8.5 C -9 -15 -33 -14 -31.5 -4.5 C -29 4 -13 7.5 -2.5 5.5 C -0.5 4.5 0 1 0 -8.5 Z"
+                fill={wingFill}
+                stroke={wingStroke}
+                strokeWidth="0.55"
+              />
+              <path
+                d="M 0 3.5 C -17 5.5 -27 12.5 -23.5 17.5 C -17 20.5 -6.5 15.5 0 11 Z"
+                fill={wingFill}
+                stroke={wingStroke}
+                strokeWidth="0.55"
+              />
+              <path
+                d="M 0 -5 Q -14 -10 -24 -5 M 0 -1.5 Q -16 -2 -22 2 M -6 6 Q -14 8 -18 12"
+                stroke={veinStroke}
+                strokeWidth="0.38"
+              />
+            </g>
+            <g className="mr-loading-bfly-wing-r" strokeLinecap="round" strokeLinejoin="round">
+              <path
+                d="M 0 -8.5 C 9 -15 33 -14 31.5 -4.5 C 29 4 13 7.5 2.5 5.5 C 0.5 4.5 0 1 0 -8.5 Z"
+                fill={wingFill}
+                stroke={wingStroke}
+                strokeWidth="0.55"
+              />
+              <path
+                d="M 0 3.5 C 17 5.5 27 12.5 23.5 17.5 C 17 20.5 6.5 15.5 0 11 Z"
+                fill={wingFill}
+                stroke={wingStroke}
+                strokeWidth="0.55"
+              />
+              <path
+                d="M 0 -5 Q 14 -10 24 -5 M 0 -1.5 Q 16 -2 22 2 M 6 6 Q 14 8 18 12"
+                stroke={veinStroke}
+                strokeWidth="0.38"
+              />
+            </g>
+            <ellipse cx="0" cy="1" rx="1.35" ry="10.5" fill={bodyFill} stroke={bodyStroke} strokeWidth="0.35" />
+            <path
+              d="M 0 -9.2 Q -1.8 -14 -3.8 -17.2 M 0 -9.2 Q 1.8 -14 3.8 -17.2"
+              stroke={bodyStroke}
+              strokeWidth="0.65"
+            />
+            <circle cx="-4.1" cy="-17.4" r="1.05" fill={bodyFill} />
+            <circle cx="4.1" cy="-17.4" r="1.05" fill={bodyFill} />
+          </svg>
+        </div>
+      </div>
+      <p className="mr-loading-bfly-label">Creating your butterfly…</p>
+    </div>
   );
 }
 
@@ -232,6 +344,27 @@ export default function MapPage() {
     setLngInput(defaultCenter.lng.toFixed(6));
   };
 
+  const handleDownloadButterfly = async () => {
+    if (!generatedButterflyUrl) {
+      setErrorMessage("Create a butterfly first, then you can download it.");
+      return;
+    }
+
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch(generatedButterflyUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const blob = await response.blob();
+      const ext = fileExtensionForImageMime(blob.type || "image/png");
+      triggerBlobDownload(blob, `flutterfriends-butterfly.${ext}`);
+    } catch {
+      setErrorMessage("Could not download the image. Check your connection or try opening it in a new tab.");
+    }
+  };
+
   const handleCustomizeButterfly = async () => {
     if (!position || !isWithinUS(position.lat, position.lng)) {
       setErrorMessage("Please select a valid US location before generating a butterfly.");
@@ -290,7 +423,7 @@ export default function MapPage() {
       <header className="mr-topbar">
         <div className="mr-logo">
           <span className="mr-flutter">flutter</span>
-          <span className="mr-logo-dot" />
+          <LogoButterflyMark className="mr-logo-butterfly" />
           <span className="mr-friends">friends</span>
         </div>
         <button type="button" className="mr-back-btn" onClick={() => navigate("/")}>
@@ -360,15 +493,24 @@ export default function MapPage() {
               <CtaButterflyIcon />
               {isLoading ? "Generating…" : "Create your butterfly"}
             </button>
-            <img
-              src={displayedButterfly}
-              alt="Generated or sample butterfly"
-              className="mr-butterfly-img"
-            />
-            <button type="button" className="mr-expand-hint" onClick={() => setShowButterflyModal(true)}>
-              <ExpandCornerIcon />
-              click to enlarge
-            </button>
+            {isLoading ? (
+              <LoadingButterflyPlaceholder />
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="mr-butterfly-preview-btn"
+                  onClick={() => setShowButterflyModal(true)}
+                  aria-label="Enlarge butterfly image"
+                >
+                  <img src={displayedButterfly} alt="" className="mr-butterfly-img" />
+                </button>
+                <p className="mr-enlarge-hint">
+                  <EnlargeOutwardArrowsIcon />
+                  <span>Click to enlarge</span>
+                </p>
+              </>
+            )}
           </div>
 
           {report?.top_species && report.top_species.length > 0 ? (
@@ -391,6 +533,15 @@ export default function MapPage() {
           <div className="mr-sidebar-footer">
             <button type="button" className="mr-cancel-btn" onClick={handleCancelButterfly}>
               Cancel
+            </button>
+            <button
+              type="button"
+              className="mr-download-btn"
+              onClick={handleDownloadButterfly}
+              disabled={!generatedButterflyUrl || isLoading}
+            >
+              <DownloadTrayIcon />
+              Download
             </button>
           </div>
         </aside>
